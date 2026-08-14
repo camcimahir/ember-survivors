@@ -301,7 +301,7 @@ export function baseStats(): PlayerStats {
     extraProjectiles: 0,
     xpGain: 1,
     luck: 0,
-    iframes: 0.75,
+    iframes: 0.5,
     lifesteal: 0,
     thorns: 0,
     revives: 0,

@@ -140,6 +140,16 @@ body {
   color: var(--ink-dim);
 }
 
+.hud-hp {
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  color: #7ef09a;
+}
+
+.hud-hp.low {
+  color: #ff6b7a;
+}
+
 /* Element chips: the 3 owned-element slots */
 .chips {
   position: absolute;

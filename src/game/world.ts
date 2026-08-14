@@ -149,6 +149,15 @@ const mkZone = (): Zone => ({
 
 export type GamePhase = 'menu' | 'playing' | 'levelup' | 'paused' | 'dead' | 'victory';
 
+/**
+ * Global multiplier on the XP a gem is worth when collected.
+ *
+ * Applied at collection rather than to `Pickup.value` so it doesn't round away
+ * on the small drops (a 2-XP crawler gem would round straight back to 2), and
+ * so gem sprite sizes — which key off `value` — stay unchanged.
+ */
+const XP_GEM_VALUE = 0.5;
+
 export interface RunStats {
   kills: number;
   damageDealt: number;
@@ -266,6 +275,9 @@ export class World {
   rerolls = 2;
   banishes = 1;
 
+  /** Debug-only invulnerability. Not reachable from gameplay. */
+  god = false;
+
   /**
    * Called for every enemy death. Weapons register here for on-kill behaviour
    * (the Devourer's spreading infection); the UI does not use it.
@@ -333,6 +345,9 @@ export class World {
     this.rerolls = 2;
     this.banishes = 1;
     this.killHooks.length = 0;
+    // Cleared per run: a debug flag left on across a restart silently invalidates
+    // whatever you were trying to test.
+    this.god = false;
 
     this.run = {
       kills: 0,
@@ -465,7 +480,7 @@ export class World {
     }
 
     // Aim at the nearest enemy; fall back to the movement direction.
-    const target = this.nearest(p.x, p.y, 720);
+    const target = this.nearest(p.x, p.y, this.targetRange);
     if (target) {
       p.aim = Math.atan2(target.y - p.y, target.x - p.x);
     } else if (mx !== 0 || my !== 0) {
@@ -494,8 +509,10 @@ export class World {
 
   damagePlayer(amount: number): void {
     const p = this.player;
-    if (p.invuln > 0 || !p.alive || this.phase !== 'playing') return;
-    const dmg = Math.max(1, amount - this.stats.armor);
+    if (p.invuln > 0 || !p.alive || this.phase !== 'playing' || this.god) return;
+    // Armour subtracts flat damage but can never remove more than 65% of a hit,
+    // so a stack of Bulwark cannot turn the whole late-game roster into 1s.
+    const dmg = Math.max(amount * 0.35, Math.max(1, amount - this.stats.armor));
     p.hp -= dmg;
     p.invuln = this.stats.iframes;
     p.hitFlash = 0.22;
@@ -746,13 +763,20 @@ export class World {
       /* --- contact damage ------------------------------------------------ */
       const touch = e.radius + 15;
       if (d < touch && p.alive) {
-        this.damagePlayer(e.damage);
-        // Bounce the attacker off so it cannot chain-hit through iframes.
-        e.kx -= ux * 190;
-        e.ky -= uy * 190;
-        if (this.stats.thorns > 0) {
-          this.damageEnemy(e, this.stats.thorns, 'steel', { noCrit: true, silent: true });
+        // Everything here is gated on a hit actually landing. Running it every
+        // frame of overlap would stack the bounce impulse into a ~1800px/s
+        // repulsor field (and tick thorns at 60Hz), which made the player
+        // physically unable to be touched.
+        if (p.invuln <= 0 && this.phase === 'playing') {
+          this.damagePlayer(e.damage);
+          // Bounce the attacker off so it cannot chain-hit through iframes.
+          e.kx -= ux * 190;
+          e.ky -= uy * 190;
+          if (this.stats.thorns > 0) {
+            this.damageEnemy(e, this.stats.thorns, 'steel', { noCrit: true, silent: true });
+          }
         }
+        // Bombers arm on contact regardless of iframes; the fuse is the tell.
         if (e.kind === 'bomber' && e.state === 0) {
           e.state = 1;
           e.t1 = 0.35;
@@ -1080,11 +1104,22 @@ export class World {
 
       if (!k.homing && d2 < grab * grab) k.homing = true;
 
-      // Gems dropped far away would otherwise sit there forever and fill the
-      // pool, starving later kills of loot. Old gems — and everything on the
-      // field once it gets crowded — come to the player on their own.
-      if (!k.homing && k.kind === 'xp') {
-        if (k.life > 22 || this.pickups.count > this.pickups.capacity * 0.75) k.homing = true;
+      // Gems left behind used to fly to the player once they were 22s old,
+      // which read as XP streaking in from off-screen for no reason. They now
+      // stay where they fell, so the only way to collect one is to be near it.
+      //
+      // The pool still has to be protected — a field full of abandoned gems
+      // would starve later kills of loot — but that is a capacity problem, not
+      // an age one, so shedding only kicks in when the pool is actually filling
+      // up, and only takes gems the player can no longer see.
+      if (
+        !k.homing &&
+        k.kind === 'xp' &&
+        this.pickups.count > this.pickups.capacity * 0.75 &&
+        !this.onScreen(k.x, k.y, 60)
+      ) {
+        k.alive = false;
+        continue;
       }
 
       if (k.homing) {
@@ -1102,7 +1137,7 @@ export class World {
     k.alive = false;
     switch (k.kind) {
       case 'xp': {
-        const gain = k.value * this.stats.xpGain;
+        const gain = k.value * this.stats.xpGain * XP_GEM_VALUE;
         this.xp += gain;
         this.run.xpCollected += gain;
         audio.play('gem');
@@ -1749,7 +1784,39 @@ export class World {
 
   /* -------------------------------------------------------------- queries */
 
-  /** Nearest living enemy within `maxDist`, or null. */
+  /**
+   * True if a world point is inside the visible rectangle.
+   *
+   * Measured from `camera.x/y` rather than `renderX/renderY` so screen shake
+   * doesn't make things flicker in and out of range mid-fight.
+   */
+  onScreen(x: number, y: number, margin = 0): boolean {
+    return (
+      Math.abs(x - this.camera.x) <= this.viewW / 2 + margin &&
+      Math.abs(y - this.camera.y) <= this.viewH / 2 + margin
+    );
+  }
+
+  /**
+   * Outer bound for target selection: the half-diagonal of the viewport.
+   *
+   * This is only a cheap early-out — `nearest`/`randomEnemyNear` additionally
+   * reject anything outside the visible rectangle, which is what actually
+   * defines the shape of the player's reach. Phones are tall, so a plain radius
+   * would either shoot well past the left and right edges or refuse to fire at
+   * things plainly visible above and below.
+   */
+  get targetRange(): number {
+    return Math.hypot(this.viewW, this.viewH) / 2;
+  }
+
+  /**
+   * Nearest living *visible* enemy within `maxDist`, or null.
+   *
+   * The on-screen test is applied to every target-selection query, so a weapon
+   * passing a generous radius still never picks something the player cannot
+   * see. Area damage (`explode`, `nova`, `zone`) is positional and unaffected.
+   */
   nearest(x: number, y: number, maxDist: number): Enemy | null {
     let best: Enemy | null = null;
     let bestD = maxDist * maxDist;
@@ -1760,6 +1827,7 @@ export class World {
       for (const i of near) {
         const e = this.enemies.items[i];
         if (!e.alive) continue;
+        if (!this.onScreen(e.x, e.y)) continue;
         const d2 = dist2(e.x, e.y, x, y);
         if (d2 < bestD) {
           bestD = d2;
@@ -1787,7 +1855,7 @@ export class World {
 
   /** A random living enemy on screen, used by weapons that strike at range. */
   randomEnemyNear(x: number, y: number, radius: number): Enemy | null {
-    const list = this.enemiesInRadius(x, y, radius, 24);
+    const list = this.enemiesInRadius(x, y, radius, 24).filter((e) => this.onScreen(e.x, e.y));
     if (list.length === 0) return null;
     return rand.pick(list);
   }

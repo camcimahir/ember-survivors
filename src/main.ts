@@ -267,7 +267,7 @@ const debugApi: DebugApi = {
     }
   },
   godMode(on = true) {
-    world.stats.armor = on ? 100000 : 0;
+    world.god = on;
     world.player.hp = world.stats.maxHp;
   },
   listWeapons() {

@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ember Survivors Codex</title>
+</head>
+<body>
+<style>
+  /* ------------------------------------------------------------------ tokens
+     Palette is lifted directly from src/art/style.ts so the codex and the game
+     agree on what "fire" looks like. The page commits to a single dark ground:
+     the element ramps are calibrated against the arena floor (#1b2a3d), and the
+     pale ends of the steel and frost ramps have no contrast on white. */
+  :root {
+    --ink:        #141527;   /* OUTLINE  */
+    --ink-2:      #1b2035;
+    --panel:      #1f2740;
+    --panel-2:    #262f4c;
+    --line:       #333d5e;
+    --line-soft:  #2a3350;
+
+    --text:       #e8edfa;
+    --text-dim:   #a3aec9;
+    --text-faint: #6f7b99;
+
+    --fire:    #ff6b2c;
+    --storm:   #4fa8ff;
+    --frost:   #54cfe8;
+    --verdant: #46c46a;
+    --steel:   #a8b6cc;
+    --void:    #8a45d6;
+
+    --gold:    #ffcc55;   /* RARITY.fusion */
+    --epic:    #b98cff;
+    --rare:    #4fa8ff;
+
+    --display: "Trebuchet MS", "Lucida Grande", system-ui, sans-serif;
+    --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+
+    --r: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 20px 96px;
+  }
+
+  /* ------------------------------------------------------------------ type */
+  h1, h2, h3, .eyebrow, th {
+    font-family: var(--display);
+    text-wrap: balance;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin: 0;
+  }
+
+  h1 {
+    font-size: clamp(34px, 6vw, 52px);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.04;
+    margin: 10px 0 0;
+  }
+
+  h2 {
+    font-size: clamp(22px, 3.4vw, 28px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.005em;
+  }
+
+  p { margin: 0; max-width: 68ch; }
+  .lede { color: var(--text-dim); font-size: 17px; margin-top: 14px; }
+
+  /* ------------------------------------------------------------- structure */
+  header.masthead {
+    border-bottom: 1px solid var(--line);
+    padding: 52px 0 30px;
+    margin-bottom: 44px;
+  }
+
+  section { margin-top: 60px; }
+
+  .sec-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line-soft);
+    margin-bottom: 26px;
+  }
+
+  .count {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    background: var(--text-dim);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-weight: 700;
+  }
+
+  .sec-note {
+    color: var(--text-faint);
+    font-size: 14px;
+    margin-left: auto;
+  }
+
+  /* ------------------------------------------------------------- tally row */
+  .tally {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    background: var(--line-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+    overflow: hidden;
+    margin-top: 30px;
+  }
+  .tally div { background: var(--ink-2); padding: 16px 18px; }
+  .tally b {
+    display: block;
+    font-family: var(--display);
+    font-size: 30px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .tally span { font-size: 13px; color: var(--text-dim); }
+
+  /* -------------------------------------------------------- element cards */
+  .elements {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+    gap: 16px;
+  }
+
+  .el {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 18px 20px 20px;
+    border-top: 3px solid var(--accent);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .el-top { display: flex; align-items: flex-start; gap: 12px; }
+
+  .ramp {
+    display: flex;
+    flex-direction: column;
+    border-radius: 5px;
+    overflow: hidden;
+    flex: 0 0 26px;
+    height: 46px;
+    border: 1px solid rgba(0, 0, 0, 0.45);
+  }
+  .ramp i { flex: 1; display: block; }
+
+  .el-name { display: flex; flex-direction: column; gap: 2px; }
+  .el-weapon { color: var(--accent); font-family: var(--display); font-weight: 700; font-size: 18px; }
+  .el-key {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .status-pill {
+    align-self: flex-start;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 999px;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  }
+
+  .el p { font-size: 14.5px; color: var(--text-dim); }
+
+  /* Level milestones: only the levels that change behaviour are listed —
+     every other level is a flat +26% damage step. */
+  .milestones { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }
+  .milestones li { display: flex; gap: 11px; font-size: 14px; align-items: baseline; }
+  .lv {
+    flex: 0 0 auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  .milestones span { color: var(--text-dim); }
+
+  /* -------------------------------------------------------- fusion matrix */
+  .scroll { overflow-x: auto; border-radius: var(--r); border: 1px solid var(--line); }
+
+  table.matrix {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 720px;
+    background: var(--panel);
+  }
+  table.matrix th, table.matrix td {
+    border: 1px solid var(--line-soft);
+    padding: 9px 10px;
+    text-align: left;
+    vertical-align: middle;
+  }
+  table.matrix thead th, table.matrix tbody th {
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--el);
+    background: var(--ink-2);
+    white-space: nowrap;
+  }
+  table.matrix td { font-size: 13.5px; line-height: 1.3; }
+
+  td.self {
+    background: var(--ink);
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: center;
+  }
+  /* Upper triangle carries the 15 real fusions; the lower triangle mirrors
+     them faintly so a lookup works from either element. */
+  td.fuse { color: var(--gold); font-weight: 600; }
+  td.mirror { color: var(--text-faint); font-size: 12px; }
+
+  /* --------------------------------------------------------- fusion list */
+  .fusions { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+  .fz {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--gold);
+    border-radius: var(--r);
+    padding: 15px 17px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .fz-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .fz h3 { color: var(--gold); }
+  .pair { display: flex; align-items: center; gap: 5px; font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .fz p { font-size: 14px; color: var(--text-dim); }
+
+  /* -------------------------------------------------------------- tables */
+  table.data { border-collapse: collapse; width: 100%; min-width: 640px; background: var(--panel); }
+  table.data th, table.data td { border-bottom: 1px solid var(--line-soft); padding: 11px 14px; text-align: left; }
+  table.data thead th {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: var(--ink-2);
+    white-space: nowrap;
+  }
+  table.data tbody tr:last-child td { border-bottom: 0; }
+  table.data td:first-child { font-weight: 600; white-space: nowrap; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text-dim); text-align: right; width: 1%; white-space: nowrap; }
+  table.data td { font-size: 14.5px; color: var(--text-dim); }
+  table.data td:first-child { color: var(--text); }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+
+  /* -------------------------------------------------------- interactions */
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; }
+  .rule {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .combo { display: flex; align-items: center; gap: 8px; font-size: 13px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; flex-wrap: wrap; }
+  .arrow { color: var(--text-faint); }
+  .bonus { margin-left: auto; color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rule p { font-size: 13.5px; color: var(--text-dim); }
+
+  .callout {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--epic);
+    border-radius: var(--r);
+    padding: 16px 18px;
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .callout strong { font-family: var(--display); font-size: 15px; }
+  .callout p { font-size: 14.5px; color: var(--text-dim); }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line-soft);
+    color: var(--text-faint);
+    font-size: 13px;
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--ink-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--text-dim);
+  }
+
+  a { color: var(--rare); }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (max-width: 560px) { .wrap { padding: 0 14px 64px; } }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Ember Survivors &middot; Upgrade Reference</p>
+    <h1>Every element, fusion,<br>and passive in the run</h1>
+    <p class="lede">
+      Forty distinct upgrades reach the level-up screen. Six of them are elements, and you may
+      only ever hold three &mdash; that single constraint is what everything else is built around.
+    </p>
+
+    <div class="tally">
+      <div><b style="color:var(--epic)">6</b><span>Elements &middot; max Lv 8</span></div>
+      <div><b style="color:var(--gold)">15</b><span>Fusions &middot; max Lv 5</span></div>
+      <div><b style="color:var(--rare)">19</b><span>Passives &middot; max Lv 2&ndash;8</span></div>
+      <div><b>3</b><span>Element slots per run</span></div>
+      <div><b>3</b><span>Fusions reachable per run</span></div>
+    </div>
+  </header>
+
+  <!-- ============================================================ ELEMENTS -->
+  <section>
+    <div class="sec-head">
+      <h2>Elements</h2>
+      <span class="count">6</span>
+      <span class="sec-note">Each owns one weapon and one signature status</span>
+    </div>
+
+    <div class="elements">
+
+      <article class="el" style="--accent: var(--fire)">
+        <div class="el-top">
+          <span class="ramp" aria-hidden="true">
+            <i style="background:#ffc46b"></i><i style="background:#ff6b2c"></i><i style="background:#a32a12"></i>
+          </span>
+          <span class="el-name">
+            <span class="el-weapon">Cinder Bolt</span>
+            <span class="el-key">Fire &middot; Ember</span>
+          </span>
+        </div>
+        <span class="status-pill">Burn</span>
+        <p>Hurls a bursting fireball at the nearest enemy and ignites it for damage over time.</p>
+        <ul class="milestones">
+          <li><span class="lv">3</span><span>+1 fireball, wider burst</span></li>
+          <li><span class="lv">5</span><span>+1 fireball, burn damage +40%</span></li>
+          <li><span class="lv">7</span><span>Fireballs pierce one enemy before bursting</span></li>
+        </ul>
+      </article>
+
+      <article class="el" style="--accent: var(--storm)">
+        <div class="el-top">
+          <span class="ramp" aria-hidden="true">
+            <i style="background:#c3ecff"></i><i style="background:#4fa8ff"></i><i style="background:#2a4fa8"></i>
+          </span>
+          <span class="el-name">
+            <span class="el-weapon">Arc Coil</span>
+            <span class="el-key">Storm &middot; Volt</span>
+          </span>
+        </div>
+        <span class="status-pill">Shock</span>
+        <p>Discharges chain lightning that leaps between enemies, with a chance to stun each one it touches.</p>
+        <ul class="milestones">
+          <li><span class="lv">2</span><span>+1 chain jump</span></li>
+          <li><span class="lv">4</span><span>+1 chain jump, +25% range</span></li>
+          <li><span class="lv">6</span><span>Fires two arcs per discharge</span></li>
+          <li><span class="lv">8</span><span>+2 jumps, arcs no longer lose power</span></li>
+        </ul>
+      </article>
+
+      <article class="el" style="--accent: var(--frost)">
+        <div class="el-top">
+          <span class="ramp" aria-hidden="true">
+            <i style="background:#c8f6ff"></i><i style="background:#54cfe8"></i><i style="background:#2a7fa0"></i>
+          </span>
+          <span class="el-name">
+            <span class="el-weapon">Rime Nova</span>
+            <span class="el-key">Frost &middot; Rime</span>
+          </span>
+        </div>
+        <span class="status-pill">Chill</span>
+        <p>Erupts a ring of glacial air around you, slowing everything it catches.</p>
+        <ul class="milestones">
+          <li><span class="lv">3</span><span>Chilled enemies are soaked &mdash; they take more shock damage</span></li>
+          <li><span class="lv">5</span><span>The nova freezes enemies solid</span></li>
+          <li><span class="lv">7</span><span>Leaves a lingering frost field behind</span></li>
+        </ul>
+      </article>
+
+      <article class="el" style="--accent: var(--verdant)">
+        <div class="el-top">
+          <span class="ramp" aria-hidden="true">
+            <i style="background:#a8f0b4"></i><i style="background:#46c46a"></i><i style="background:#1e7a3e"></i>
+          </span>
+          <span class="el-name">
+            <span class="el-weapon">Thornseed</span>
+            <span class="el-key">Verdant &middot; Bloom</span>
+          </span>
+        </div>
+        <span class="status-pill">Poison</span>
+        <p>Launches seeking spores that poison on contact. Poison ignores armour entirely.</p>
+        <ul class="milestones">
+          <li><span class="lv">2</span><span>+1 spore</span></li>
+          <li><span class="lv">4</span><span>Spores root enemies in place</span></li>
+          <li><span class="lv">6</span><span>+1 spore, kills heal you</span></li>
+          <li><span class="lv">8</span><span>Spores burst into a toxic cloud</span></li>
+        </ul>
+      </article>
+
+      <article class="el" style="--accent: var(--steel)">
+        <div class="el-top">
+          <span class="ramp" aria-hidden="true">
+            <i style="background:#eef3fb"></i><i style="background:#a8b6cc"></i><i style="background:#5a6782"></i>
+          </span>
+          <span class="el-name">
+            <span class="el-weapon">Buzzsaw</span>
+            <span class="el-key">Steel &middot; Edge</span>
+          </span>
+        </div>
+        <span class="status-pill">Shatter</span>
+        <p>Sawblades orbit you and shred anything they touch. No aiming, no cooldown &mdash; pure area denial.</p>
+        <ul class="milestones">
+          <li><span class="lv">2</span><span>+1 blade</span></li>
+          <li><span class="lv">4</span><span>+1 blade, wider orbit</span></li>
+          <li><span class="lv">6</span><span>+1 blade, blades spin faster</span></li>
+          <li><span class="lv">8</span><span>+2 blades, +30% orbit radius</span></li>
+        </ul>
+      </article>
+
+      <article class="el" style="--accent: var(--void)">
+        <div class="el-top">
+          <span class="ramp" aria-hidden="true">
+            <i style="background:#d9b4ff"></i><i style="background:#8a45d6"></i><i style="background:#4a1d80"></i>
+          </span>
+          <span class="el-name">
+            <span class="el-weapon">Singularity</span>
+            <span class="el-key">Void &middot; Rift</span>
+          </span>
+        </div>
+        <span class="status-pill">Mark</span>
+        <p>Tears open a rift that drags the horde inward and marks everything caught for extra damage.</p>
+        <ul class="milestones">
+          <li><span class="lv">3</span><span>The rift collapses for burst damage when it closes</span></li>
+          <li><span class="lv">5</span><span>+1 rift per cast</span></li>
+          <li><span class="lv">7</span><span>Rifts last longer and pull much harder</span></li>
+        </ul>
+      </article>
+
+    </div>
+
+    <div class="callout">
+      <strong>The sidearm doesn't count</strong>
+      <p>
+        Every run also starts with a Steel <em>Sidearm</em> that fires at the nearest enemy. It never
+        appears on a card and costs no element slot &mdash; it exists so you are never completely
+        without a way to fight back. It scales with passives, not with levels.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================= FUSIONS -->
+  <section>
+    <div class="sec-head">
+      <h2>Fusion matrix</h2>
+      <span class="count">15</span>
+      <span class="sec-note">Every pair of elements has exactly one fusion</span>
+    </div>
+
+    <p class="lede" style="margin-bottom: 22px">
+      Take any two of your elements to <strong>Level&nbsp;3</strong> and their fusion appears as a
+      card &mdash; a new weapon that replaces neither parent. Because you hold at most three
+      elements, a single run can reach only three of these fifteen.
+    </p>
+
+    <div class="scroll">
+      <table class="matrix">
+        <caption class="sr-only" style="position:absolute;left:-9999px">Fusion produced by each pair of elements</caption>
+        <thead>
+          <tr>
+            <th scope="col" style="--el: var(--text-faint)"></th>
+            <th scope="col" style="--el: var(--fire)">Fire</th>
+            <th scope="col" style="--el: var(--storm)">Storm</th>
+            <th scope="col" style="--el: var(--frost)">Frost</th>
+            <th scope="col" style="--el: var(--verdant)">Verdant</th>
+            <th scope="col" style="--el: var(--steel)">Steel</th>
+            <th scope="col" style="--el: var(--void)">Void</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row" style="--el: var(--fire)">Fire</th>
+            <td class="self">Cinder Bolt</td>
+            <td class="fuse">Plasma Storm</td>
+            <td class="fuse">Steam Burst</td>
+            <td class="fuse">Wildfire</td>
+            <td class="fuse">Molten Saw</td>
+            <td class="fuse">Supernova</td>
+          </tr>
+          <tr>
+            <th scope="row" style="--el: var(--storm)">Storm</th>
+            <td class="mirror">Plasma Storm</td>
+            <td class="self">Arc Coil</td>
+            <td class="fuse">Cryo Conductor</td>
+            <td class="fuse">Lightning Rod</td>
+            <td class="fuse">Railgun</td>
+            <td class="fuse">Tesla Rift</td>
+          </tr>
+          <tr>
+            <th scope="row" style="--el: var(--frost)">Frost</th>
+            <td class="mirror">Steam Burst</td>
+            <td class="mirror">Cryo Conductor</td>
+            <td class="self">Rime Nova</td>
+            <td class="fuse">Permafrost Bloom</td>
+            <td class="fuse">Glacier Chakram</td>
+            <td class="fuse">Absolute Zero</td>
+          </tr>
+          <tr>
+            <th scope="row" style="--el: var(--verdant)">Verdant</th>
+            <td class="mirror">Wildfire</td>
+            <td class="mirror">Lightning Rod</td>
+            <td class="mirror">Permafrost Bloom</td>
+            <td class="self">Thornseed</td>
+            <td class="fuse">Bramble Cutter</td>
+            <td class="fuse">Devourer</td>
+          </tr>
+          <tr>
+            <th scope="row" style="--el: var(--steel)">Steel</th>
+            <td class="mirror">Molten Saw</td>
+            <td class="mirror">Railgun</td>
+            <td class="mirror">Glacier Chakram</td>
+            <td class="mirror">Bramble Cutter</td>
+            <td class="self">Buzzsaw</td>
+            <td class="fuse">Gravity Blades</td>
+          </tr>
+          <tr>
+            <th scope="row" style="--el: var(--void)">Void</th>
+            <td class="mirror">Supernova</td>
+            <td class="mirror">Tesla Rift</td>
+            <td class="mirror">Absolute Zero</td>
+            <td class="mirror">Devourer</td>
+            <td class="mirror">Gravity Blades</td>
+            <td class="self">Singularity</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color: var(--text-faint); font-size: 13px; margin-top: 10px">
+      Gold cells are the fifteen fusions; the grid is symmetric, so the dimmed half repeats them for lookup.
+    </p>
+  </section>
+
+  <!-- ======================================================== FUSION LIST -->
+  <section>
+    <div class="sec-head">
+      <h2>What each fusion does</h2>
+      <span class="count">15</span>
+      <span class="sec-note">Level 1 behaviour &middot; all cap at Lv 5</span>
+    </div>
+
+    <div class="fusions">
+
+      <article class="fz">
+        <div class="fz-head"><h3>Plasma Storm</h3>
+          <span class="pair"><i class="dot" style="background:var(--fire)"></i><i class="dot" style="background:var(--storm)"></i></span></div>
+        <p>Launches plasma orbs that explode and chain lightning to nearby foes.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Steam Burst</h3>
+          <span class="pair"><i class="dot" style="background:var(--fire)"></i><i class="dot" style="background:var(--frost)"></i></span></div>
+        <p>Erupts scalding steam around you: burns, then soaks and chills everything it touches.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Wildfire</h3>
+          <span class="pair"><i class="dot" style="background:var(--fire)"></i><i class="dot" style="background:var(--verdant)"></i></span></div>
+        <p>Scatters patches of burning ground. Enemies that die while burning spread the fire.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Molten Saw</h3>
+          <span class="pair"><i class="dot" style="background:var(--fire)"></i><i class="dot" style="background:var(--steel)"></i></span></div>
+        <p>Molten blades orbit you, leaving trails of fire and igniting what they cut.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Supernova</h3>
+          <span class="pair"><i class="dot" style="background:var(--fire)"></i><i class="dot" style="background:var(--void)"></i></span></div>
+        <p>A collapsing star drags enemies in, then detonates in a massive blast.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Cryo Conductor</h3>
+          <span class="pair"><i class="dot" style="background:var(--storm)"></i><i class="dot" style="background:var(--frost)"></i></span></div>
+        <p>Freezes a cluster solid, then arcs a supercharged chain through the frozen &mdash; which conduct perfectly.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Lightning Rod</h3>
+          <span class="pair"><i class="dot" style="background:var(--storm)"></i><i class="dot" style="background:var(--verdant)"></i></span></div>
+        <p>Roots enemies with vines, then calls down lightning strikes on every rooted target.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Railgun</h3>
+          <span class="pair"><i class="dot" style="background:var(--storm)"></i><i class="dot" style="background:var(--steel)"></i></span></div>
+        <p>Fires a piercing rail that cuts through everything in a line.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Tesla Rift</h3>
+          <span class="pair"><i class="dot" style="background:var(--storm)"></i><i class="dot" style="background:var(--void)"></i></span></div>
+        <p>Opens a rift that pulls enemies in and continuously electrocutes everything caught inside.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Permafrost Bloom</h3>
+          <span class="pair"><i class="dot" style="background:var(--frost)"></i><i class="dot" style="background:var(--verdant)"></i></span></div>
+        <p>Ice blossoms erupt beneath enemies, freezing and impaling them.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Glacier Chakram</h3>
+          <span class="pair"><i class="dot" style="background:var(--frost)"></i><i class="dot" style="background:var(--steel)"></i></span></div>
+        <p>Hurls a ricocheting ice disc. Freezes on hit &mdash; and steel shatters frozen foes for double damage.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Absolute Zero</h3>
+          <span class="pair"><i class="dot" style="background:var(--frost)"></i><i class="dot" style="background:var(--void)"></i></span></div>
+        <p>A growing field where nothing moves. Enemies frozen inside shatter when it collapses.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Bramble Cutter</h3>
+          <span class="pair"><i class="dot" style="background:var(--verdant)"></i><i class="dot" style="background:var(--steel)"></i></span></div>
+        <p>Sweeps a wide thorned arc in front of you. Cuts heal you.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Devourer</h3>
+          <span class="pair"><i class="dot" style="background:var(--verdant)"></i><i class="dot" style="background:var(--void)"></i></span></div>
+        <p>Infects enemies with devouring spores that drain life to you and spread on death.</p>
+      </article>
+
+      <article class="fz">
+        <div class="fz-head"><h3>Gravity Blades</h3>
+          <span class="pair"><i class="dot" style="background:var(--steel)"></i><i class="dot" style="background:var(--void)"></i></span></div>
+        <p>A roaming singularity drags enemies into a ring of orbiting blades.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ PASSIVES -->
+  <section>
+    <div class="sec-head">
+      <h2>Passives</h2>
+      <span class="count">19</span>
+      <span class="sec-note">Effect listed is per level taken</span>
+    </div>
+
+    <div class="scroll">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Passive</th>
+            <th scope="col">Effect per level</th>
+            <th scope="col" style="text-align:right">Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Vitality</td><td>+22 max health, and heals you for the amount gained</td><td class="num">6</td></tr>
+          <tr><td>Might</td><td>+12% damage with everything</td><td class="num">8</td></tr>
+          <tr><td>Haste</td><td>&minus;8% weapon cooldown</td><td class="num">6</td></tr>
+          <tr><td>Swiftness</td><td>+9% movement speed</td><td class="num">6</td></tr>
+          <tr><td>Resonance</td><td>+12% area of effect</td><td class="num">6</td></tr>
+          <tr><td>Bulwark</td><td>+3 armour, subtracted from every hit you take</td><td class="num">6</td></tr>
+          <tr><td>Keen Eye</td><td>+6% critical strike chance</td><td class="num">6</td></tr>
+          <tr><td>Brutality</td><td>+35% critical damage</td><td class="num">5</td></tr>
+          <tr><td>Lodestone</td><td>+30% pickup radius</td><td class="num">5</td></tr>
+          <tr><td>Scholar</td><td>+18% experience gained</td><td class="num">5</td></tr>
+          <tr><td>Regrowth</td><td>Regenerate +0.7 health per second</td><td class="num">5</td></tr>
+          <tr><td>Lingering</td><td>+18% duration for burns, chills, zones and rifts</td><td class="num">5</td></tr>
+          <tr><td>Fortune</td><td>+12% luck &mdash; better cards appear more often</td><td class="num">4</td></tr>
+          <tr><td>Spiked Hide</td><td>Deal 10 damage to anything that touches you</td><td class="num">4</td></tr>
+          <tr><td>Blood Pact</td><td>Heal for 1.5% of all damage you deal</td><td class="num">4</td></tr>
+          <tr><td>Velocity</td><td>+18% projectile speed</td><td class="num">4</td></tr>
+          <tr><td>Split Shot</td><td>+1 projectile for weapons that fire them</td><td class="num">3</td></tr>
+          <tr><td>Blink</td><td>Automatically dash out of danger when surrounded; shorter cooldown each level</td><td class="num">3</td></tr>
+          <tr><td>Second Wind</td><td>Survive a fatal hit, restoring 55% health</td><td class="num">2</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ======================================================== INTERACTIONS -->
+  <section>
+    <div class="sec-head">
+      <h2>Elemental reactions</h2>
+      <span class="count">6</span>
+      <span class="sec-note">Automatic &mdash; every weapon benefits</span>
+    </div>
+
+    <p class="lede" style="margin-bottom: 22px">
+      These are the passive half of the combination system. They are resolved on every point of
+      damage dealt, so any weapon carrying the right element gets them for free &mdash; no fusion
+      required. This is why some element pairs feel strong together long before Level&nbsp;3.
+    </p>
+
+    <div class="rules">
+      <div class="rule">
+        <span class="combo">Steel <span class="arrow">&rarr;</span> Frozen <span class="bonus">&times;2.0</span></span>
+        <p>Steel shatters frozen enemies for double damage. The single biggest reaction in the game.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Storm <span class="arrow">&rarr;</span> Wet / Chilled <span class="bonus">&times;1.5</span></span>
+        <p>Storm conducts through anything frost has soaked or slowed.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Fire <span class="arrow">&rarr;</span> Wet <span class="bonus">&times;1.35</span></span>
+        <p>Fire flashes the water off for a burst, consuming the soak in the process.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Fire <span class="arrow">&rarr;</span> Frozen <span class="bonus">&times;1.3</span></span>
+        <p>Fire thaws the target, trading most of the freeze duration for extra damage.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Verdant <span class="arrow">&rarr;</span> Marked <span class="bonus">&times;1.2</span></span>
+        <p>Poison feeds on targets a void rift has marked.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Void mark <span class="arrow">&rarr;</span> Everything <span class="bonus">+mark</span></span>
+        <p>A void mark amplifies all incoming damage from every source, not just void.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================== STATUSES -->
+  <section>
+    <div class="sec-head">
+      <h2>Status effects</h2>
+      <span class="count">8</span>
+      <span class="sec-note">What each element applies</span>
+    </div>
+
+    <div class="scroll">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Status</th>
+            <th scope="col">Source</th>
+            <th scope="col">What it does</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Burn</td><td><span class="tag">Fire</span></td><td>Damage over time. Reapplying refreshes duration and keeps the higher rate.</td></tr>
+          <tr><td>Poison</td><td><span class="tag">Verdant</span></td><td>Damage over time that ignores armour completely.</td></tr>
+          <tr><td>Chill</td><td><span class="tag">Frost</span></td><td>Slows movement, up to a maximum of 85%. Also soaks the target.</td></tr>
+          <tr><td>Frozen</td><td><span class="tag">Frost</span></td><td>Hard stop. Bosses resist it. Steel shatters frozen targets.</td></tr>
+          <tr><td>Shock</td><td><span class="tag">Storm</span></td><td>Brief stun, and makes the target a better conductor for chains.</td></tr>
+          <tr><td>Root</td><td><span class="tag">Verdant</span></td><td>Cannot move, but can still act.</td></tr>
+          <tr><td>Mark</td><td><span class="tag">Void</span></td><td>Amplifies all incoming damage for the duration.</td></tr>
+          <tr><td>Wet</td><td><span class="tag">Frost</span></td><td>Amplifies shock damage. Consumed by fire for a burst.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Generated from <code>src/game/content/</code> &mdash; elements.ts, fusions.ts, passives.ts and
+    the shared palette in <code>src/art/style.ts</code>. Numbers reflect the current working tree.
+  </footer>
+
+</div>
+</body>
+</html>

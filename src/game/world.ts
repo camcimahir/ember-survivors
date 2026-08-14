@@ -228,6 +228,7 @@ export class World {
     dashT: 0,
     dashCdT: 0,
     regenAcc: 0,
+    healBudget: 0,
     alive: true,
   };
 
@@ -321,6 +322,7 @@ export class World {
     this.player.dashT = 0;
     this.player.dashCdT = 0;
     this.player.regenAcc = 0;
+    this.player.healBudget = 0;
     this.player.alive = true;
 
     this.stats = baseStats();
@@ -485,6 +487,12 @@ export class World {
       p.aim = Math.atan2(target.y - p.y, target.x - p.x);
     } else if (mx !== 0 || my !== 0) {
       p.aim = Math.atan2(my, mx);
+    }
+
+    // Kill-healing budget refills continuously and tops out at one second's
+    // worth, so the payout rate is bounded no matter how many things die at once.
+    if (s.healRate > 0) {
+      p.healBudget = Math.min(s.healRate, p.healBudget + s.healRate * dt);
     }
 
     if (s.hpRegen > 0 && p.hp < s.maxHp) {
@@ -1390,10 +1398,6 @@ export class World {
     e.hitFlash = 0.1;
     this.run.damageDealt += dmg;
 
-    if (this.stats.lifesteal > 0) {
-      this.player.hp = Math.min(this.stats.maxHp, this.player.hp + dmg * this.stats.lifesteal);
-    }
-
     if (opts.knock && opts.knock > 0) {
       const dx = opts.dirX ?? e.x - this.player.x;
       const dy = opts.dirY ?? e.y - this.player.y;
@@ -1420,6 +1424,17 @@ export class World {
     if (!e.alive) return;
     e.alive = false;
     this.run.kills++;
+
+    // Blood Pact: kills return health, drawn from a rate-limited budget so a
+    // large crowd cannot out-heal the danger it represents.
+    const p = this.player;
+    if (this.stats.healOnKill > 0 && p.alive && p.hp < this.stats.maxHp) {
+      const heal = Math.min(this.stats.healOnKill, p.healBudget);
+      if (heal > 0) {
+        p.healBudget -= heal;
+        this.healPlayer(heal, false);
+      }
+    }
 
     const isBoss = e.kind === 'boss';
     if (isBoss) {

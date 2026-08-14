@@ -274,8 +274,17 @@ export interface PlayerStats {
   luck: number;
   /** Seconds of invulnerability after taking a hit. */
   iframes: number;
-  /** Percentage of damage dealt returned as HP. */
-  lifesteal: number;
+  /**
+   * Health restored per enemy killed.
+   *
+   * Deliberately not a percentage of damage dealt: that form was applied per
+   * damage instance, so it scaled with how many enemies you were hitting and
+   * how fast your damage-over-time ticked — it paid out most in exactly the
+   * crowded moments that are supposed to be dangerous.
+   */
+  healOnKill: number;
+  /** Ceiling on kill-healing, in HP per second. Makes it crowd-size-independent. */
+  healRate: number;
   /** Contact damage dealt to enemies that touch the player. */
   thorns: number;
   /** Number of times death is prevented. */
@@ -302,7 +311,8 @@ export function baseStats(): PlayerStats {
     xpGain: 1,
     luck: 0,
     iframes: 0.5,
-    lifesteal: 0,
+    healOnKill: 0,
+    healRate: 0,
     thorns: 0,
     revives: 0,
     dashCd: 0,
@@ -325,6 +335,12 @@ export interface Player {
   dashT: number;
   dashCdT: number;
   regenAcc: number;
+  /**
+   * Leaky bucket for kill-healing. Refills at `stats.healRate` per second and
+   * is capped there, so a burst of kills can pay out at most about one second's
+   * worth at once and no crowd, however large, heals faster than the cap.
+   */
+  healBudget: number;
   alive: boolean;
 }
 

@@ -57,6 +57,7 @@ export class UI {
   private timerLabel!: HTMLElement;
   private waveLabel!: HTMLElement;
   private killsLabel!: HTMLElement;
+  private hpLabel!: HTMLElement;
   private chips!: HTMLElement;
   private toasts!: HTMLElement;
   private bossBar!: HTMLElement;
@@ -99,7 +100,8 @@ export class UI {
 
     const row2 = el('div', 'hud-row');
     this.killsLabel = el('span', 'hud-kills', '0 kills');
-    row2.append(this.killsLabel);
+    this.hpLabel = el('span', 'hud-hp', '120 / 120');
+    row2.append(this.killsLabel, this.hpLabel);
 
     top.append(track, row, row2);
     this.hud.appendChild(top);
@@ -143,6 +145,11 @@ export class UI {
     this.timerLabel.textContent = formatTime(w.time);
     this.waveLabel.textContent = `WAVE ${w.wave}`;
     this.killsLabel.textContent = `${formatShort(w.run.kills)} kills`;
+
+    const hp = Math.max(0, Math.ceil(w.player.hp));
+    const maxHp = Math.round(w.stats.maxHp);
+    this.hpLabel.textContent = `${hp} / ${maxHp}`;
+    this.hpLabel.classList.toggle('low', hp / maxHp <= 0.3);
 
     if (w.bossActive && w.bossRef) {
       this.bossBar.style.display = '';

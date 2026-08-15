@@ -184,9 +184,10 @@ export const PASSIVES: PassiveDef[] = [
     icon: 'lifesteal',
     tint: '#7a2038',
     maxLevel: 4,
-    desc: 'Heal for <em>1.5%</em> of all damage you deal.',
+    desc: 'Kills restore <em>2</em> health, up to <em>3</em> health per second.',
     apply: (s) => {
-      s.lifesteal += 0.015;
+      s.healOnKill += 2;
+      s.healRate += 3;
     },
   },
   {

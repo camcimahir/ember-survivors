@@ -383,6 +383,42 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     }
+
+    // Health bar. Drawn after the body so the invulnerability blink doesn't
+    // fade the one piece of UI the player needs to trust.
+    this.drawPlayerHealth(ctx, world);
+  }
+
+  private drawPlayerHealth(ctx: CanvasRenderingContext2D, world: World): void {
+    const p = world.player;
+    const frac = clamp(p.hp / world.stats.maxHp, 0, 1);
+
+    const bw = 46;
+    // Constant on-screen thickness, same reasoning as the enemy bars: a bar in
+    // world units thins out to nothing once the camera pulls back.
+    const bh = 6 / this.zoom;
+    const pad = 1.5 / this.zoom;
+    const x = p.x - bw / 2;
+    const y = p.y - 42;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(6,10,18,0.72)';
+    ctx.fillRect(x - pad, y - pad, bw + pad * 2, bh + pad * 2);
+
+    // Green through amber to red, so peripheral vision reads the state without
+    // having to measure the length of the bar.
+    const fill = frac > 0.6 ? '#5ce07a' : frac > 0.3 ? '#ffc24d' : '#ff4d5e';
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, bw * frac, bh);
+
+    // Highlight along the top edge keeps it from reading as a flat block.
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fillRect(x, y, bw * frac, bh * 0.34);
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1 / this.zoom;
+    ctx.strokeRect(x - pad, y - pad, bw + pad * 2, bh + pad * 2);
+    ctx.restore();
   }
 
   /* --------------------------------------------------------------- bullets */

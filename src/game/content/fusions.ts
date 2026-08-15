@@ -27,8 +27,19 @@ import type { World } from '../world';
 /** Level at which a base element unlocks its fusions. */
 export const FUSION_REQ_LEVEL = 3;
 
+/**
+ * Global fusion power dial.
+ *
+ * Fusions are the payoff for committing two element slots, so they should be
+ * strong — but they were landing hard enough that reaching one effectively
+ * ended the run's difficulty curve. Every fusion routes its damage through
+ * `dmg()` below, so this single constant scales all fifteen together and keeps
+ * their relative balance intact. Raise toward 1 to give the power back.
+ */
+const FUSION_POWER = 0.8;
+
 function dmg(w: World, base: number, level: number, per = 0.3): number {
-  return base * scale(level, per) * w.stats.damage;
+  return base * scale(level, per) * w.stats.damage * FUSION_POWER;
 }
 
 interface FusionSpec extends WeaponDef {

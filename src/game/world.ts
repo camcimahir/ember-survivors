@@ -24,8 +24,10 @@ import {
   type ElementKey,
   type Enemy,
   type Particle,
+  type PendingSpawn,
   type Pickup,
   type Player,
+  type SpawnMode,
   type PlayerStats,
   type MobKind,
   type Zone,
@@ -63,6 +65,20 @@ const mkEnemy = (): Enemy => ({
   gen: 0,
   scale: 1,
   pulled: 0,
+});
+
+const mkPendingSpawn = (): PendingSpawn => ({
+  alive: false,
+  kind: 'crawler',
+  mode: 'drop',
+  x: 0,
+  y: 0,
+  elite: false,
+  t: 0,
+  dur: 0.7,
+  scale: 1,
+  face: 1,
+  seed: 0,
 });
 
 const mkBullet = (): Bullet => ({
@@ -210,6 +226,8 @@ export class World {
   readonly pickups = new Pool<Pickup>(mkPickup, 620, 200);
   readonly particles = new Pool<Particle>(mkParticle, 940, 260);
   readonly zones = new Pool<Zone>(mkZone, 72, 24);
+  /** Enemies mid-entrance: telegraphed, not yet part of the sim. */
+  readonly spawns = new Pool<PendingSpawn>(mkPendingSpawn, 96, 32);
 
   readonly camera = new Camera();
   private readonly grid = new SpatialHash(72);
@@ -310,6 +328,7 @@ export class World {
     this.pickups.clear();
     this.particles.clear();
     this.zones.clear();
+    this.spawns.clear();
 
     this.player.x = 0;
     this.player.y = 0;
@@ -412,6 +431,7 @@ export class World {
     this.updateZones(dt);
     this.updatePickups(dt);
     this.updateParticles(dt);
+    this.updateSpawns(dt);
     this.updateSpawning(dt);
 
     this.enemies.sweep();
@@ -419,6 +439,7 @@ export class World {
     this.pickups.sweep();
     this.particles.sweep();
     this.zones.sweep();
+    this.spawns.sweep();
 
     this.camera.follow(this.player.x, this.player.y, dt, 0.16);
     this.camera.update(dt);
@@ -869,10 +890,13 @@ export class World {
       this.damagePlayer(e.damage);
     }
     this.fxRing(e.x, e.y, r, '#ff7088', 0.55);
-    // Summon a small escort so the boss fight has adds to clear.
+    // Summon a small escort so the boss fight has adds to clear. Telegraphed
+    // like any other arrival — this is the one spawn that always happens on
+    // screen, so adds popping into existence next to the player was the most
+    // visible version of the problem the entrances exist to solve.
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * TAU + rnd();
-      this.spawnEnemy('crawler', e.x + Math.cos(a) * 120, e.y + Math.sin(a) * 120, false);
+      this.queueSpawn('crawler', e.x + Math.cos(a) * 120, e.y + Math.sin(a) * 120, false);
     }
   }
 
@@ -1231,7 +1255,10 @@ export class World {
     // weapon and needs room to build before the horde becomes the threat.
     const rate = Math.min(16, 0.7 + this.time * 0.013 + this.wave * 0.18);
     this.spawnAcc += rate * dt;
-    const budget = Math.min(this.enemies.free, 8);
+    // Queued entrances already have a pool slot reserved against them, so the
+    // budget counts them too — otherwise a burst commits more landings than
+    // there is room for and the tail of it silently fizzles.
+    const budget = Math.min(this.enemies.free - this.spawns.count, 8);
     let spawned = 0;
     while (this.spawnAcc >= 1 && spawned < budget) {
       this.spawnAcc -= 1;
@@ -1240,7 +1267,7 @@ export class World {
       const kind = rand.weighted(kinds, weights);
       const [x, y] = this.offscreenPoint();
       const eliteChance = Math.min(0.14, this.time / 2600);
-      this.spawnEnemy(kind, x, y, rnd() < eliteChance);
+      this.queueSpawn(kind, x, y, rnd() < eliteChance);
     }
 
     // Periodic pack: a tight ring of mobs, so pacing has peaks not just a drip.
@@ -1252,20 +1279,146 @@ export class World {
       for (let i = 0; i < count; i++) {
         const a = a0 + (i / count) * TAU;
         const r = Math.max(this.viewW, this.viewH) * 0.72;
-        this.spawnEnemy(kind, this.player.x + Math.cos(a) * r, this.player.y + Math.sin(a) * r, false);
+        this.queueSpawn(kind, this.player.x + Math.cos(a) * r, this.player.y + Math.sin(a) * r, false);
       }
     }
   }
 
-  /** A point just outside the visible rectangle, biased to the player's heading. */
+  /** A point just inside the visible rectangle, biased to the player's heading. */
   private offscreenPoint(): [number, number] {
-    const marginX = this.viewW * 0.62 + 40;
-    const marginY = this.viewH * 0.62 + 40;
+    // Reduced margins so entrance animations are visible during play. Spawns now
+    // arrive near the screen edge instead of far outside, making the shadow tell
+    // and the arrival visible. This makes the game ~1s more difficult (mobs
+    // arrive closer) but the spectacle is worth it.
+    const marginX = this.viewW * 0.38 + 20;
+    const marginY = this.viewH * 0.38 + 20;
     const a = rndAngle();
     return [
       this.player.x + Math.cos(a) * marginX,
       this.player.y + Math.sin(a) * marginY,
     ];
+  }
+
+  /**
+   * Telegraphs an arrival instead of dropping the enemy straight into the world.
+   *
+   * A distorted ground shadow is shown first, then the creature either falls in
+   * from off the top of the screen or claws its way up out of the ground. Both
+   * halves of that read as "something is about to be here", which the old
+   * instant spawn never gave the player.
+   *
+   * Splitter children deliberately do not come through here: they burst out of
+   * the corpse mid-fight, and delaying them would change how that mob plays.
+   */
+  queueSpawn(kind: MobKind, x: number, y: number, elite: boolean): void {
+    const face = this.player.x > x ? 1 : -1;
+    const ps = this.spawns.spawn();
+    // Pool full: skip the entrance rather than lose the mob.
+    if (!ps) {
+      this.arrive(kind, x, y, elite, 'drop', face);
+      return;
+    }
+    const d = MOBS[kind];
+    ps.kind = kind;
+    // Wraiths phase up through the floor and bombers arc in; everything else
+    // splits evenly, so roughly half of any wave arrives each way.
+    ps.mode = kind === 'wraith' ? 'rise' : kind === 'bomber' ? 'drop' : rnd() < 0.5 ? 'rise' : 'drop';
+    ps.x = x;
+    ps.y = y;
+    ps.elite = elite;
+    ps.t = 0;
+    // Jittered so a queued ring does not land as one thud, and stretched for
+    // the heavier bodies — a boss telegraph is meant to be read from across the
+    // screen and answered before it arrives.
+    const base = kind === 'boss' ? 1.25 : elite ? 0.85 : 0.62;
+    ps.dur = base * rndRange(0.92, 1.12);
+    ps.scale = d.scale * (elite ? 1.32 : 1);
+    ps.face = face;
+    ps.seed = rnd() * TAU;
+  }
+
+  /** Advances telegraphed entrances and hands the finished ones to the sim. */
+  private updateSpawns(dt: number): void {
+    const ss = this.spawns.items;
+    for (let i = 0; i < this.spawns.count; i++) {
+      const ps = ss[i];
+      if (!ps.alive) continue;
+      ps.t += dt;
+      // Soil kicked up by whatever is digging its way out. Emitted from the
+      // sim rather than the renderer so it survives into the landing frames.
+      if (ps.mode === 'rise' && ps.t > ps.dur * 0.4 && rnd() < dt * 14) {
+        const a = rndAngle();
+        this.addParticle(
+          'shard', ps.x + rndRange(-14, 14), ps.y + 12,
+          Math.cos(a) * rndRange(20, 70), -rndRange(40, 120),
+          rndRange(0.3, 0.5), 4, 1, '#6b5a44', false, rndRange(-8, 8), 0.92, 340,
+        );
+      }
+      if (ps.t < ps.dur) continue;
+      ps.alive = false;
+      this.arrive(ps.kind, ps.x, ps.y, ps.elite, ps.mode, ps.face);
+    }
+  }
+
+  /** Puts a finished entrance into the sim proper. */
+  private arrive(kind: MobKind, x: number, y: number, elite: boolean, mode: SpawnMode, face: number): void {
+    const e = this.spawnEnemy(kind, x, y, elite);
+    if (kind === 'boss') {
+      // The boss gate is held by `bossActive` from the moment the horn blows.
+      // If the pool had no room, release it so the next frame re-queues —
+      // otherwise the run loses that boss entirely.
+      if (e) this.bossRef = e;
+      else this.bossActive = false;
+    }
+    if (!e) return;
+    e.face = face;
+    this.fxArrival(e, mode);
+  }
+
+  /** Impact of an arrival: dust off the landing, or turf off the dig-out. */
+  private fxArrival(e: Enemy, mode: SpawnMode): void {
+    const r = e.radius;
+    const big = e.kind === 'boss';
+    // Roughly where the sprite meets the floor. The dust has to sit on that
+    // line, not on the body's centre, or it reads as a halo round the head.
+    const gy = e.y + r * 1.1;
+    if (mode === 'drop') {
+      // Dust only for the rank and file. The shockwave ring is loud enough that
+      // sixteen of them a second would be visual noise, so it is kept for the
+      // arrivals that are actually worth looking up for.
+      if (big || e.elite) {
+        // Starts wide: a ring that opens from nothing renders as a filled disc
+        // for its first frames, which reads as a bubble rather than kicked dust.
+        this.addParticle('ring', e.x, gy, 0, 0, 0.24, r * 1.2, r * (big ? 3.4 : 2.4), '#8b97ab', false, 0, 0.9);
+        this.camera.shake(big ? 0.5 : 0.16);
+      }
+      const n = big ? 12 : 7;
+      for (let i = 0; i < n; i++) {
+        // Spread evenly rather than at random angles: five random puffs land
+        // lopsided about as often as not, which looks like a glitch.
+        const a = (i / n) * TAU + rndRange(-0.35, 0.35);
+        const sp = rndRange(60, big ? 240 : 130);
+        this.addParticle(
+          'puff', e.x + Math.cos(a) * r * 0.3, gy, Math.cos(a) * sp, Math.sin(a) * sp * 0.25 - 12,
+          rndRange(0.3, 0.55), r * 0.5, r * 1.2, '#7a8399', false, 0, 0.9,
+        );
+      }
+      if (big) audio.play('boom', 0.6);
+    } else {
+      for (let i = 0; i < (big ? 14 : 6); i++) {
+        const a = rndAngle();
+        this.addParticle(
+          'shard', e.x + rndRange(-r * 0.7, r * 0.7), gy,
+          Math.cos(a) * rndRange(30, 110), -rndRange(70, 200),
+          rndRange(0.35, 0.6), r * 0.3, r * 0.1, '#6b5a44', false, rndRange(-8, 8), 0.92, 340,
+        );
+      }
+      this.addParticle('puff', e.x, gy, 0, -18, 0.4, r * 0.7, r * 1.7, '#5a4c3a', false, 0, 0.9);
+      if (big) {
+        this.camera.shake(0.5);
+        audio.play('boom', 0.6);
+      }
+    }
   }
 
   spawnEnemy(kind: MobKind, x: number, y: number, elite: boolean, gen = 0): Enemy | null {
@@ -1323,11 +1476,13 @@ export class World {
 
   private spawnBoss(): void {
     const [x, y] = this.offscreenPoint();
-    const e = this.spawnEnemy('boss', x, y, false);
-    if (!e) return;
+    // The horn, the name card and the gate all fire now, at the telegraph; the
+    // body itself arrives a beat later and `bossRef` is filled in then. The HUD
+    // bar already null-guards `bossRef`, so it simply stays empty until landing.
     this.bossActive = true;
-    this.bossRef = e;
+    this.bossRef = null;
     this.bossName = BOSS_NAMES[Math.min(BOSS_NAMES.length - 1, this.run.bossesKilled)];
+    this.queueSpawn('boss', x, y, false);
     this.onToast?.(this.bossName.toUpperCase());
     audio.play('bossHorn');
     this.camera.shake(0.4);

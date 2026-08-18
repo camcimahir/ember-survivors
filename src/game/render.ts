@@ -13,7 +13,7 @@ import { fx, type FxKey } from '../art/fx';
 import { getGroundPattern, PROP_CELL, propsForCell, type PropInstance } from '../art/env';
 import { withAlpha } from '../art/draw';
 import { PALETTE } from '../art/style';
-import { BulletFlag, type Enemy } from './types';
+import { BulletFlag, type Enemy, type PendingSpawn } from './types';
 import type { World } from './world';
 import type { Input } from '../engine/input';
 
@@ -30,6 +30,14 @@ const MOB_ART = {
   shielded: 'shielded',
   boss: 'boss',
 } as const;
+
+/** Brightness steps for a body still climbing out of the ground. */
+const RISE_DARK = [
+  'brightness(0.35)',
+  'brightness(0.52)',
+  'brightness(0.68)',
+  'brightness(0.84)',
+];
 
 /** Reused scratch array so prop gathering never allocates per frame. */
 const propScratch: PropInstance[] = [];
@@ -118,6 +126,7 @@ export class Renderer {
     this.drawProps(ctx, camX, camY);
     this.drawZones(ctx, world);
     this.drawPickups(ctx, world);
+    this.drawSpawns(ctx, world);
     this.drawEnemies(ctx, world);
     this.drawPlayer(ctx, world, alpha);
     this.drawBullets(ctx, world);
@@ -208,6 +217,140 @@ export class Renderer {
       const pop = k.life < 0.2 ? 0.5 + (k.life / 0.2) * 0.5 : 1;
       drawSprite(ctx, sprite, k.x, k.y + bob, 0, s * pop);
     }
+  }
+
+  /* -------------------------------------------------------- spawn entrances */
+
+  /**
+   * Telegraphed arrivals: a churning shadow on the ground, then the creature
+   * either falls into it from above or digs its way up out of it.
+   *
+   * Drawn before the enemies so a body already standing there overlaps the
+   * shadow rather than the other way round.
+   */
+  private drawSpawns(ctx: CanvasRenderingContext2D, world: World): void {
+    const ss = world.spawns.items;
+    for (let i = 0; i < world.spawns.count; i++) {
+      const ps = ss[i];
+      if (!ps.alive) continue;
+
+      const sprite = actors.get(MOB_ART[ps.kind]);
+      const size = sprite.size * ps.scale;
+      // The mob sprites bake their own contact shadow near the bottom of the
+      // frame; matching that offset here keeps the telegraph on the same
+      // ground line the creature will stand on.
+      const gy = ps.y + size * 0.42;
+      const p = clamp(ps.t / ps.dur, 0, 1);
+
+      if (ps.mode === 'drop') this.drawDropSpawn(ctx, ps, sprite, size, gy, p, world.time);
+      else this.drawRiseSpawn(ctx, ps, sprite, size, gy, p, world.time);
+    }
+  }
+
+  /**
+   * A shadow that boils in place, tightening and darkening as the thing above
+   * it gets closer — the whole point is that the ground tells you where and
+   * how big before anything is there to shoot.
+   */
+  private spawnShadow(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    rx: number,
+    ry: number,
+    alpha: number,
+    wobble: number,
+    seed: number,
+    time: number,
+  ): void {
+    ctx.save();
+    ctx.fillStyle = `rgba(4,6,12,${alpha})`;
+    ctx.beginPath();
+    const steps = 12;
+    for (let k = 0; k <= steps; k++) {
+      const a = (k / steps) * TAU;
+      // Two out-of-phase sines per point: one slow swell, one faster ripple.
+      const d =
+        1 +
+        Math.sin(a * 3 + time * 6 + seed) * wobble +
+        Math.sin(a * 5 - time * 9 + seed * 2) * wobble * 0.55;
+      const px = x + Math.cos(a) * rx * d;
+      const py = y + Math.sin(a) * ry * d;
+      if (k === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawDropSpawn(
+    ctx: CanvasRenderingContext2D,
+    ps: PendingSpawn,
+    sprite: Sprite,
+    size: number,
+    gy: number,
+    p: number,
+    time: number,
+  ): void {
+    const rx = size * 0.34;
+    // Far away the shadow is wide, faint and formless; it draws in and hardens
+    // as the body drops, so the last quarter-second reads as "brace".
+    const spread = 1.7 - p * 0.7;
+    this.spawnShadow(
+      ctx, ps.x, gy, rx * spread, rx * 0.34 * spread,
+      0.16 + p * 0.38, 0.34 * (1 - p) + 0.06, ps.seed, time,
+    );
+
+    // Accelerating fall: the offset is quadratic, so it hangs high early and
+    // slams through the last stretch.
+    const fall = (1 - p) * (1 - p);
+    const y = ps.y - size * 5.2 * fall;
+    const stretch = 1 - p;
+
+    ctx.save();
+    ctx.translate(ps.x, y);
+    ctx.scale(ps.face * (1 - stretch * 0.16), 1 + stretch * 0.3);
+    drawSprite(ctx, sprite, 0, 0, 0, ps.scale, 1);
+    ctx.restore();
+  }
+
+  private drawRiseSpawn(
+    ctx: CanvasRenderingContext2D,
+    ps: PendingSpawn,
+    sprite: Sprite,
+    size: number,
+    gy: number,
+    p: number,
+    time: number,
+  ): void {
+    const rx = size * 0.36;
+    // The hole opens first and the body only starts climbing at 40%, so the
+    // shadow alone owns the first half of the tell.
+    const open = clamp(p / 0.4, 0, 1);
+    this.spawnShadow(
+      ctx, ps.x, gy, rx * (0.45 + open * 0.55), rx * 0.34 * (0.45 + open * 0.55),
+      0.16 + open * 0.42, 0.26 * (1 - p * 0.5), ps.seed, time,
+    );
+    if (p <= 0.4) return;
+
+    const q = (p - 0.4) / 0.6;
+    // Ease-out: it bursts up, then the last of it grinds into place.
+    const up = 1 - Math.pow(1 - q, 2.2);
+    ctx.save();
+    // Clip to everything above the ground line, so the body is revealed by the
+    // hole rather than sliding over the top of it.
+    ctx.beginPath();
+    ctx.rect(ps.x - size, gy - size * 2.2, size * 2, size * 2.2);
+    ctx.clip();
+    ctx.translate(ps.x, ps.y + size * (1 - up));
+    ctx.scale(ps.face, 1);
+    // Still down in the dark for the first part of the climb. Stepped through a
+    // fixed table rather than built per frame — string churn in the draw loop is
+    // exactly the kind of garbage this renderer avoids everywhere else.
+    if (q < 0.8) ctx.filter = RISE_DARK[Math.min(RISE_DARK.length - 1, (q * 5) | 0)];
+    drawSprite(ctx, sprite, 0, 0, 0, ps.scale, 1);
+    ctx.restore();
   }
 
   /* --------------------------------------------------------------- enemies */

@@ -205,7 +205,8 @@ interface DebugApi {
   levelUp(n?: number): void;
   addElement(el: ElementKey, level?: number): void;
   addFusion(id: string, level?: number): void;
-  spawn(kind: MobKind, count?: number, elite?: boolean): void;
+  /** `entrance` routes through the spawn telegraph instead of placing instantly. */
+  spawn(kind: MobKind, count?: number, elite?: boolean, entrance?: boolean): void;
   setTime(t: number): void;
   killAll(): void;
   godMode(on?: boolean): void;
@@ -251,10 +252,13 @@ const debugApi: DebugApi = {
     if (!f) return;
     for (let i = 0; i < level; i++) world.addWeapon(f);
   },
-  spawn(kind, count = 1, elite = false) {
+  spawn(kind, count = 1, elite = false, entrance = false) {
     for (let i = 0; i < count; i++) {
       const a = (i / count) * Math.PI * 2;
-      world.spawnEnemy(kind, world.player.x + Math.cos(a) * 220, world.player.y + Math.sin(a) * 220, elite);
+      const x = world.player.x + Math.cos(a) * 220;
+      const y = world.player.y + Math.sin(a) * 220;
+      if (entrance) world.queueSpawn(kind, x, y, elite);
+      else world.spawnEnemy(kind, x, y, elite);
     }
   },
   setTime(t) {

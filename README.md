@@ -52,6 +52,14 @@ Crawler, Runner, Spitter (ranged), Dasher (telegraphed charge), Bomber
 the front — flank it), and a **Warden** boss every couple of minutes that slams,
 summons escorts, and drops a treasure chest.
 
+Nothing appears out of thin air: every arrival is telegraphed by a churning,
+distorted shadow on the ground, and then roughly half of them fall in out of the
+sky while the other half claw their way up out of the floor (wraiths always
+rise, bombers always drop). The creature has no hitbox, no aggro and no place in
+the spatial grid until the entrance finishes, so nothing can shoot — or be shot
+— before it has landed. The boss gets a longer, heavier version of the same
+tell: the horn and the name card fire immediately, the body lands a beat later.
+
 ---
 
 ## How the art is made
@@ -247,6 +255,7 @@ Driving the simulation headlessly (`window.__game`, see below):
 __game.addElement('fire', 5)      // grant an element at a level
 __game.addFusion('plasma', 3)     // grant a fusion
 __game.spawn('brute', 10, true)   // spawn mobs (kind, count, elite)
+__game.spawn('brute', 4, false, true)  // ...with the spawn entrance played
 __game.roll(3)                    // roll a hand of upgrade cards
 __game.pick(card)                 // apply one
 __game.step(600)                  // advance 600 fixed steps
@@ -264,7 +273,9 @@ Balance lives in a few places, all plain numbers:
 - `src/game/content/mobs.ts` — per-mob HP, speed, damage, XP, spawn weight and
   unlock time.
 - `src/game/world.ts` — `xpForLevel()`, the spawn-rate ramp and the enemy HP/damage
-  curves in `spawnEnemy()`.
+  curves in `spawnEnemy()`. `queueSpawn()` holds the entrance timings and the
+  drop/rise split; `offscreenPoint()` decides how far outside the view arrivals
+  are placed, which is also what decides how often you see an entrance at all.
 - `src/game/content/elements.ts` / `fusions.ts` — per-weapon damage and cooldowns.
 - `src/game/types.ts` — `baseStats()`, the player's starting numbers.
 - `src/game/render.ts` — `DESIGN_VIEW_WIDTH`, how many world units are visible

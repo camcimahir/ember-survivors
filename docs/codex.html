@@ -836,6 +836,61 @@
     </div>
   </section>
 
+  <!-- ==================================================== BALANCE RULES -->
+  <section>
+    <div class="sec-head">
+      <h2>Combat &amp; progression</h2>
+      <span class="count">7</span>
+      <span class="sec-note">Run-wide rules the cards operate inside</span>
+    </div>
+
+    <p class="lede" style="margin-bottom: 22px">
+      The cards above are only half the picture. These are the global rules that decide what a
+      given upgrade is actually worth &mdash; and the dials to reach for when a build feels
+      broken.
+    </p>
+
+    <div class="rules">
+      <div class="rule">
+        <span class="combo">Fusion power <span class="bonus">&times;0.80</span></span>
+        <p>Every fusion routes damage through one shared multiplier. They are the payoff for
+        committing two element slots, but at full strength reaching one flattened the rest of the
+        run.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">XP gem value <span class="bonus">&times;0.50</span></span>
+        <p>Gems pay half their face value. Because total XP to a level grows roughly cubically,
+        this costs about 20% of your final level &mdash; not 50%.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Invulnerability <span class="bonus">0.5s</span></span>
+        <p>After any hit you are immune for half a second, so contact damage is capped near two
+        hits per second no matter how large the crowd is.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Armour ceiling <span class="bonus">65%</span></span>
+        <p>Bulwark subtracts flat damage, but armour can never remove more than 65% of a hit. A
+        full stack cannot turn the late-game roster into chip damage.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Attack range <span class="bonus">on screen</span></span>
+        <p>Auto-aim and every ranged weapon target only enemies inside the visible rectangle.
+        Area damage is positional and ignores this.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Gem pickup <span class="bonus">62 units</span></span>
+        <p>Gems stay where they fall &mdash; nothing flies to you. Walk within your pickup radius,
+        which Lodestone raises by 30% a level. Off-screen gems are cleared only if the pool passes
+        75% full.</p>
+      </div>
+      <div class="rule">
+        <span class="combo">Contact damage <span class="bonus">once per hit</span></span>
+        <p>Knockback and Spiked Hide fire only on a landed hit, not on every frame of overlap.
+        The old behaviour made the player a repulsor field that nothing could touch.</p>
+      </div>
+    </div>
+  </section>
+
   <footer>
     Generated from <code>src/game/content/</code> &mdash; elements.ts, fusions.ts, passives.ts and
     the shared palette in <code>src/art/style.ts</code>. Numbers reflect the current working tree.

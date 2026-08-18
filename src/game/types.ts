@@ -119,6 +119,36 @@ export interface Enemy extends Poolable {
   pulled: number;
 }
 
+/* ------------------------------------------------------- spawn telegraph --- */
+
+/** How a queued enemy makes its entrance. */
+export type SpawnMode = 'drop' | 'rise';
+
+/**
+ * A spawn that has been telegraphed but not yet placed in the world.
+ *
+ * These deliberately live outside the enemy pool: while the entrance plays the
+ * creature has no hitbox, no grid cell and no aggro, so every `e.alive` gate in
+ * the sim keeps its current meaning and nothing can be shot — or shoot back —
+ * out of thin air. `World.updateSpawns` calls `spawnEnemy` when the timer ends.
+ */
+export interface PendingSpawn extends Poolable {
+  kind: MobKind;
+  mode: SpawnMode;
+  x: number;
+  y: number;
+  elite: boolean;
+  /** Elapsed and total telegraph time, in seconds. */
+  t: number;
+  dur: number;
+  /** Sprite scale, resolved at queue time so the renderer stays dumb. */
+  scale: number;
+  /** Facing for the preview sprite; matched to the real enemy on arrival. */
+  face: number;
+  /** Per-instance seed so a queued ring does not wobble in lockstep. */
+  seed: number;
+}
+
 /* -------------------------------------------------------------- bullets --- */
 
 /** Behaviour flags packed into one field; cheaper than a bag of booleans. */

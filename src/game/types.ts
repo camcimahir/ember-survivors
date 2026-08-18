@@ -302,7 +302,7 @@ export function baseStats(): PlayerStats {
     area: 1,
     projSpeed: 1,
     duration: 1,
-    moveSpeed: 176,
+    moveSpeed: 352,
     pickupRadius: 62,
     armor: 0,
     critChance: 0.05,
